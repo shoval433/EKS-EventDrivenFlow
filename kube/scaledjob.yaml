@@ -1,0 +1,65 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-trigger-auth-aws-credentials
+  namespace: default
+spec:
+  secretTargetRef:
+    - parameter: awsAccessKeyId
+      name: boto3-secrets
+      key: AWS_ACCESS_KEY_ID
+    - parameter: awsSecretAccessKey
+      name: boto3-secrets
+      key: AWS_SECRET_ACCESS_KEY
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: sqs-scaler-job
+  namespace: default
+spec:
+  jobTargetRef:
+    template:
+      spec:
+        containers:
+        - name: boto3-container
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/<IMAGE_NAME>:latest
+          ports:
+          - containerPort: 80
+          env:
+          - name: SQS_QUEUE_URL
+            valueFrom:
+              secretKeyRef:
+                name: boto3-secrets
+                key: SQS_QUEUE_URL
+          - name: S3_BUCKET_NAME
+            valueFrom:
+              secretKeyRef:
+                name: boto3-secrets
+                key: S3_BUCKET_NAME
+          - name: AWS_REGION
+            valueFrom:
+              secretKeyRef:
+                name: boto3-secrets
+                key: AWS_REGION
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: boto3-secrets
+                key: AWS_SECRET_ACCESS_KEY
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: boto3-secrets
+                key: AWS_ACCESS_KEY_ID
+          resources:
+            limits:
+              cpu: 1
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: "<SQS_QUEUE_URL>"
+        awsRegion: "<AWS_REGION>"
+        queueLength: "1" 
+      authenticationRef:
+        name: keda-trigger-auth-aws-credentials
